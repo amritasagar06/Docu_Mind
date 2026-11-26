@@ -1,4 +1,4 @@
-# DocuMind AI
+# Docu_Mind — DocuMind AI
 
 > **Find answers in technical documentation, with the evidence attached.**
 
