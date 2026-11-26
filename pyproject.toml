@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "documind-ai"
+version = "0.1.0"
+description = "Evidence-grounded technical documentation assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.12,<5",
+    "PyMuPDF>=1.24,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

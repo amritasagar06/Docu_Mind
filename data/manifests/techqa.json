@@ -1,0 +1,61 @@
+{
+  "dataset_id": "nvidia/TechQA-RAG-Eval",
+  "dataset_url": "https://huggingface.co/datasets/nvidia/TechQA-RAG-Eval",
+  "files": {
+    "corpus.zip": {
+      "download_url": "https://huggingface.co/datasets/nvidia/TechQA-RAG-Eval/resolve/0b5bbc84b7f07d6d09d063130e90b716d8d4a32a/corpus.zip",
+      "path": "data/raw/techqa/corpus.zip",
+      "sha256": "c06aa287dcc1abf8db6b49b8495df095db73342d729f6451ac330785245d10be",
+      "size_bytes": 45814227,
+      "verified_existing_file": true
+    },
+    "train.json": {
+      "download_url": "https://huggingface.co/datasets/nvidia/TechQA-RAG-Eval/resolve/0b5bbc84b7f07d6d09d063130e90b716d8d4a32a/train.json",
+      "path": "data/raw/techqa/train.json",
+      "sha256": "69d97231509482ed6bd5ec1c4bc0607acb82a88d11169eb8383592d0ca8b93c7",
+      "size_bytes": 4019332,
+      "verified_existing_file": true
+    }
+  },
+  "license": "Apache-2.0 (as labeled on the Hugging Face dataset card)",
+  "normalization": {
+    "algorithm": "content-addressed documents; SHA-256-ranked deterministic question split",
+    "normalized_at_utc": "2026-11-26T06:05:51.206041+00:00",
+    "stats": {
+      "benchmark_output": "data/processed/techqa_benchmark_cases.jsonl",
+      "benchmark_records": 910,
+      "corpus_archive_files": 28481,
+      "corpus_archive_uncompressed_bytes": 104882784,
+      "decode_replacement_characters": 0,
+      "decode_warning_files": [],
+      "documents_output": "data/processed/techqa_documents.jsonl",
+      "duplicate_content_files_collapsed": 3,
+      "impossible_questions": 300,
+      "local_evaluation_fraction": 0.2,
+      "local_split_counts": {
+        "development": 728,
+        "evaluation": 182
+      },
+      "local_split_seed": 42,
+      "question_rows": 910,
+      "question_rows_without_contexts": 300,
+      "unique_context_filenames": 496,
+      "unique_document_content": 28478,
+      "unmatched_context_filenames": 0
+    }
+  },
+  "normalized_files": {
+    "techqa_benchmark_cases.jsonl": {
+      "path": "data/processed/techqa_benchmark_cases.jsonl",
+      "sha256": "0b6fd1f6512ec4bb899375efa8b8a8de871e129a0477eda093032526c28c51a2",
+      "size_bytes": 886253
+    },
+    "techqa_documents.jsonl": {
+      "path": "data/processed/techqa_documents.jsonl",
+      "sha256": "0db17d4ba311cf7360f062fee0e665adbcbb75937391fc073c382ab46a4e2ce0",
+      "size_bytes": 127270778
+    }
+  },
+  "retrieved_at_utc": "2026-11-26T06:01:10.615461+00:00",
+  "revision": "0b5bbc84b7f07d6d09d063130e90b716d8d4a32a"
+}
