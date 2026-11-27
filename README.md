@@ -2,169 +2,241 @@
 
 > **Find answers in technical documentation, with the evidence attached.**
 
-DocuMind AI is a documentation knowledge assistant in active development. The goal is to help engineering and IT teams find reliable answers across technical documents and inspect the passages behind each answer. The first milestone builds the ingestion foundation; search, answer generation, and the product interface are on the roadmap. The complete product, dataset, architecture, and day-by-day implementation requirements live in [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+DocuMind AI is an early-stage, local-first documentation assistant for engineering and IT teams. It is being built to make technical knowledge easier to search and answers easier to verify. The project is under active development: Days 1–7 provide document ingestion, chunking, dataset preparation, local embeddings, vector search, keyword search, reviewable duplicate flags, hybrid ranking, and a traceable reranking interface. A chat interface and generated answers are planned, not implemented yet.
 
-## Why DocuMind AI
+## The problem
 
-Technical knowledge is spread across Markdown guides, PDFs, web pages, and Q&A archives. Keyword search can miss paraphrases, while semantic search can overlook exact identifiers such as `MAX_POOL_SIZE`, `HTTP 422`, or `Depends()`. A language model can also produce a confident answer that the source material does not support.
+Technical instructions are scattered across PDFs, Markdown files, support articles, runbooks, and archived Q&A. Keyword search can miss questions phrased differently from the source. Vector search can miss exact identifiers such as `MAX_POOL_SIZE` or `HTTP 422`. And a language model can give a confident response that the documentation never supported.
 
-DocuMind AI is being built around a practical principle: answers should be grounded in retrieved source passages, and users should be able to inspect that evidence. The project combines document ingestion, hybrid retrieval, citations, and evaluation rather than treating a chat window as the whole product.
+DocuMind AI is being built around a simple product promise: make the source passages easy to find and inspect, and only add answer generation when it can point back to evidence.
 
-## Product areas
+## What DocuMind can do today
 
-- **Knowledge Library:** ingest, inspect, and manage technical documents.
-- **AI Assistant:** ask questions, inspect cited passages, and see when evidence is insufficient.
-- **Analytics & Evaluation:** measure retrieval quality, answer faithfulness, citation quality, abstentions, and latency.
+- Load Markdown, text, HTML, and PDF files into a consistent document format.
+- Preserve headings and source details; keep PDF pages separate with page numbers.
+- Split documents into fixed-size, Markdown-aware recursive, or semantic chunks.
+- Acquire and normalize the pinned TechQA-RAG-Eval data into document records and separate benchmark cases.
+- Create local, CPU-based embeddings with a pinned Sentence Transformers model revision.
+- Store chunks in a persistent ChromaDB collection; add, search, delete, and rebuild chunks using stable IDs.
+- Search exact identifiers and error codes with BM25 keyword retrieval.
+- Search in dense-only, sparse-only, or hybrid mode; hybrid mode combines ranked lists with configurable Reciprocal Rank Fusion (RRF).
+- Rerank a bounded hybrid candidate list with a no-model identity baseline or an explicitly configured local cross-encoder; inspect both original retrieval and reranking scores.
+- Keep a canonical JSONL chunk manifest as the source for both vector and keyword indexes.
+- Flag likely duplicate chunks using a configurable cosine threshold; record review decisions without deleting source chunks.
+- Return the matching source chunk and its metadata for inspection.
 
-These are the intended product areas. The Day 1 ingestion foundation, Day 2 chunking layer, and Day 3 TechQA acquisition/normalization pipeline are implemented; retrieval and the product interface remain on the roadmap.
+**Current boundary:** This repository does not yet provide a graphical interface, chat assistant, or generated answers. Retrieval returns source passages; it does not compose or verify a natural-language answer yet.
 
-## Features
+## Who it is for
 
-### Available in the Day 1 foundation
-
-- Load `.md`, `.txt`, `.html`, `.htm`, and `.pdf` files.
-- Normalize results into a typed `Document` record with source URI, source name, content type, headings, and optional page number.
-- Keep PDF pages as separate records with one-based page numbers for future citations.
-- Raise a clear `DocumentLoadError` for unsupported, missing, unreadable, encrypted, or malformed sources.
-- Split documents with fixed-size overlap, Markdown-aware recursive, or similarity-driven semantic chunking.
-- Preserve stable chunk IDs, source/document identity, source headings, page numbers, content type, and custom metadata.
-- Download a pinned TechQA-RAG-Eval revision, verify source checksums, and normalize documents separately from evaluation questions and answers.
-- Keep benchmark reference answers and answerability labels out of the normalized document corpus.
-
-### Planned
-
-- Local embeddings, ChromaDB vector search, and BM25 keyword search.
-- Reciprocal Rank Fusion (RRF), reranking, grounded answers, and citation checks.
-- FastAPI service, Streamlit dashboard, SQLite metadata, and reproducible evaluation.
-
-## Technology
-
-| Area | Planned technology | Status |
-| --- | --- | --- |
-| Language | Python 3.11+ | Project foundation |
-| Markdown/text and HTML extraction | Python standard library, BeautifulSoup | Day 1 |
-| PDF extraction | PyMuPDF | Day 1 |
-| Chunking | Project-native fixed, recursive, and semantic strategies | Day 2 |
-| Local embeddings | Sentence Transformers (`all-MiniLM-L6-v2`) | Planned |
-| Vector retrieval | ChromaDB | Planned |
-| Keyword retrieval | `rank-bm25` | Planned |
-| Local language model | Ollama | Planned |
-| API and dashboard | FastAPI, Streamlit | Planned |
-| Metadata and logs | SQLite | Planned |
-| Evaluation | pytest and a reviewed golden-question set | Planned |
-
-The intended MVP is local-first and free-first. Local model requirements and model licenses will be reviewed before those components are selected for release.
-
-## Seed dataset
-
-The selected first real-world corpus and evaluation source is [`nvidia/TechQA-RAG-Eval`](https://huggingface.co/datasets/nvidia/TechQA-RAG-Eval), a Hugging Face dataset based on technical-support questions from IBM developer forums and their associated technical documents. The pinned local snapshot contains 910 questions and 28,478 unique documents after exact-content deduplication. The dataset card labels it Apache-2.0. See [DATA_SOURCES.md](DATA_SOURCES.md) and [`data/manifests/techqa.json`](data/manifests/techqa.json) for provenance and the observed checksums.
+The initial product is aimed at software engineers, IT support, and internal technical teams who need to find information in technical documentation. The current build is a local prototype for public or non-confidential material. It is not a production-ready, multi-tenant company knowledge service.
 
 ## How it works
 
 ```text
-Current (Days 1–3)
-Local file ──> format loader ──> normalized Document record(s)
-                                  └─ PDF: one record per page
-Document ──> fixed / recursive / semantic chunker ──> source-linked chunks
-Pinned TechQA files ──> checksum/schema validation ──> documents + separate benchmark cases
+Implemented: document, dataset, and local retrieval foundations (Days 1–6)
 
-Planned end-to-end workflow
-Documents ──> extraction ──> chunking ──┬─> local embeddings ──> ChromaDB
-                                         └─> BM25 keyword index
-Question ──> dense + keyword retrieval ──> RRF / reranking
-          ──> evidence-grounded answer ──> citations + verification
+Public documents ──> format loaders ──> normalized documents
+                                            │
+                                            ▼
+                                   chunking strategies
+                                            │
+                                            ▼
+                               canonical JSONL manifest
+                                    ┌───────┴────────┐
+                                    ▼                ▼
+                          local embeddings         BM25
+                                    ▼                │
+                             persistent ChromaDB    │
+                                    └────────┬───────┘
+                                             ▼
+                                      source passages
+                                      + duplicate review
+                                            │
+Question ──> dense + BM25 results ──> RRF ──> ranked source chunks
+
+TechQA-RAG-Eval ──> pinned download + checksums ──> normalization
+                                                       ├─> seed documents
+                                                       └─> separate benchmark cases
+
+Planned product workflow
+
+Question ──> optional reranking ──> grounded answer with citations or abstention
+         ──> API + dashboard; evaluation and usage analytics
 ```
 
-## Quick start
+## Dataset
+
+The first real-world dataset is NVIDIA’s [`TechQA-RAG-Eval`](https://huggingface.co/datasets/nvidia/TechQA-RAG-Eval), hosted on Hugging Face. It contains technical-support questions from IBM developer forums and associated technical documents. We use it both as a seed document corpus and as a separate offline retrieval benchmark.
+
+The downloaded snapshot is pinned to a specific dataset revision and verified with SHA-256 checksums. The observed snapshot has 910 question rows, including 300 labeled unanswerable, and 28,478 unique document contents after exact-content deduplication. The local question partition contains 728 development and 182 evaluation cases. These values describe the acquired snapshot, not claims about general product accuracy.
+
+Benchmark answers and answerability labels are kept separate from indexed document text. The dataset has been downloaded and normalized, but the complete TechQA document set has not yet been chunked and loaded into the shared search indexes. Raw and processed data are not included in Git by default. See [DATA_SOURCES.md](DATA_SOURCES.md), [PROJECT_GUIDE.md](PROJECT_GUIDE.md), and the tracked [dataset manifest](data/manifests/techqa.json) for provenance and implementation details.
+
+## Technology
+
+| Area | Technology | Status |
+| --- | --- | --- |
+| Runtime and packaging | Python 3.11+, `pyproject.toml` | Implemented |
+| Document loading | BeautifulSoup, PyMuPDF | Day 1 |
+| Chunking | Fixed-size, recursive, semantic | Day 2 |
+| Dataset pipeline | Hugging Face TechQA-RAG-Eval, pinned snapshot | Day 3 |
+| Local embeddings | Sentence Transformers, `all-MiniLM-L6-v2` at a pinned revision | Day 4 |
+| Persistent vector store | ChromaDB | Day 4 |
+| Keyword retrieval | `rank-bm25` | Day 5 |
+| Duplicate review | Chroma cosine candidates + reversible JSONL registry | Day 5 |
+| Hybrid ranking | In-house Reciprocal Rank Fusion (default constant 60) | Day 6 |
+| Answer generation | Ollama with a locally runnable model | Planned |
+| API and dashboard | FastAPI and Streamlit | Planned |
+| Metadata and logs | SQLite | Planned |
+| Tests | pytest | In use |
+
+## Get started
 
 ### Requirements
 
 - Python 3.11 or newer
 - `pip`
+- Internet access for the optional TechQA download and for the first real embedding-model run
 
-### Install
+### Windows PowerShell
+
+From the repository folder:
 
 ```powershell
-py -3.11 -m venv .venv
-.venv\Scripts\Activate.ps1
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-On macOS or Linux, activate the environment with `source .venv/bin/activate` instead.
+If using another installed Python version, replace `3.12` with that version. On macOS or Linux, activate with `source .venv/bin/activate`.
 
-### Load a document
+### Run the tests
 
-```python
-from pathlib import Path
-
-from documind.ingestion import load_document
-
-records = load_document(Path("docs/guide.pdf"))
-for record in records:
-    print(record.source_name, record.page_number, record.text[:100])
+```powershell
+python -m pytest -q
 ```
 
-For a source checkout before installing the package, set `PYTHONPATH=src` (PowerShell: `$env:PYTHONPATH = "src"`). A PDF yields one record per page. Other supported files yield one record per file. Scanned PDFs may have no extractable text; OCR is outside the current scope.
+The test suite uses temporary files and a deterministic fake embedder, so it does not download the TechQA dataset or embedding weights.
 
-### Acquire and normalize TechQA
+### Verify real local embeddings and persistence
+
+```powershell
+python scripts\smoke_test_vectorstore.py
+```
+
+The first run downloads the pinned `all-MiniLM-L6-v2` model revision from Hugging Face (about 91 MB of model weights). It runs on CPU by default, indexes a small sample, performs a query, and launches a fresh process to verify that the index persisted. The sample collection is written under `data/indexes/day4-smoke`, which Git ignores.
+
+### Download and prepare TechQA
 
 ```powershell
 python scripts\download_techqa.py
 python scripts\normalize_techqa.py
 ```
 
-The downloader uses the pinned revision and writes source checksums to `data/manifests/techqa.json`. Normalization writes `data/processed/techqa_documents.jsonl` and `data/processed/techqa_benchmark_cases.jsonl`. Raw and processed data remain out of Git.
+The download is roughly 50 MB. It is not required for the unit tests or the smoke test. The scripts verify the pinned source and write normalized documents and benchmark records under ignored `data/` paths.
 
-### Create chunks
+### Use the vector store in Python
 
 ```python
 from pathlib import Path
 
-from documind.chunking import ChunkingConfig, FixedSizeChunker
+from documind.chunking import FixedSizeChunker
+from documind.embeddings import SentenceTransformerEmbedder
 from documind.ingestion import load_document
+from documind.retrieval import IdentityReranker, LocalIndexManager, RerankingPipeline
 
 document = load_document(Path("docs/guide.md"))[0]
-chunker = FixedSizeChunker(ChunkingConfig(max_chars=800, overlap_chars=120))
-chunks = chunker.chunk(document)
-print(chunks[0].chunk_id, chunks[0].heading, chunks[0].text[:100])
+chunks = FixedSizeChunker().chunk(document)
+
+index = LocalIndexManager(
+    "data/indexes/documind",
+    SentenceTransformerEmbedder(device="cpu"),
+)
+index.add(chunks)
+
+for result in index.vector_store.query("How do I configure the connection pool?", n_results=5):
+    print(result.score, result.chunk.source_name, result.chunk.text)
+
+for result in index.keyword_index.query("MAX_POOL_SIZE", n_results=5):
+    print(result.score, result.chunk.source_name, result.chunk.text)
+
+for result in index.search(
+    "How do I change MAX_POOL_SIZE?",
+    mode="hybrid",
+    top_k=5,
+    dense_k=10,
+    sparse_k=10,
+):
+    print(result.rrf_score, result.dense_rank, result.sparse_rank, result.chunk.text)
+
+# Day 7 baseline: preserve the fused order while measuring both pipeline stages.
+run = RerankingPipeline(index, IdentityReranker()).run(
+    "How do I change MAX_POOL_SIZE?", candidate_k=20, top_k=5
+)
+for result in run.results:
+    print(result.rerank_rank, result.rerank_score, result.chunk.source_name)
+print(run.retrieval_latency_ms, run.reranking_latency_ms)
+
+for candidate in index.detect_duplicates(threshold=0.95):
+    print(candidate.first_chunk_id, candidate.second_chunk_id, candidate.similarity)
 ```
 
-The semantic chunker accepts a similarity function so it can be tested independently of a model. Local embedding integration is planned for a later day; the current semantic strategy does not download or load an embedding model.
+`result.chunk` contains the source-linked text and metadata. Dense scores are cosine similarities, sparse scores are BM25 ranking scores, and `rrf_score` is the fused rank score. None is an answer-confidence score or a benchmark result. `LocalIndexManager` writes `data/indexes/documind/chunk_manifest.jsonl` as the canonical chunk set and synchronizes BM25 and Chroma when chunks are added, deleted, or rebuilt. Near-duplicate review records live alongside the manifest and never remove source records automatically. Use `mode="dense"` or `mode="sparse"` on the same question to compare rankings.
 
-## Verify the Day 1 foundation
+### Reproducible TechQA retrieval comparison
+
+After downloading and normalizing TechQA as described above, build the full local index and run the held-out comparison:
 
 ```powershell
-python -m pytest
+python scripts/index_techqa.py
+python scripts/evaluate_retrieval.py
 ```
 
-The tests use small temporary files and generate a tiny PDF locally. They do not download a corpus or call an external model.
+The index uses fixed 1,000-character chunks with 150-character overlap and the pinned embedding revision from the project guide. The evaluator compares dense, sparse, and hybrid retrieval on the same held-out questions, with development-only warm-up. It reports document-level Recall@5/10, MRR@10, and mean/median/p95 retrieval latency. Results and full configuration are saved under `data/eval/results/` and are intentionally ignored by Git until they are reviewed. The report excludes unanswerable questions from recall and MRR and explains the benchmark's same-corpus evidence limitation. Do not claim a best method until the generated results have been inspected.
 
 ## Roadmap
 
-| Milestone | Focus | Status |
+| Milestone | Deliverable | Status |
 | --- | --- | --- |
 | Day 1 | Python package, normalized document model, Markdown/text/HTML/PDF loaders | Complete |
-| Day 2 | Shared chunk model and fixed, structure-aware, and semantic chunking | Complete |
-| Day 3 | TechQA acquisition, normalization, and provenance | Complete |
-| Days 4–7 | Local embeddings, ChromaDB, BM25, deduplication, RRF, and reranking | Next |
-| Days 8–11 | Grounded answers, citation verification, evaluation, and experiments | Planned |
-| Days 12–14 | API, dashboard, persistence, Docker, quality pass, and demo | Planned |
+| Day 2 | Fixed, recursive, and semantic chunking with provenance | Complete |
+| Day 3 | Pinned TechQA download, validation, normalization, and benchmark split | Complete |
+| Day 4 | Pinned local embeddings and persistent ChromaDB add/query/delete/rebuild | Complete; CPU smoke test passes |
+| Day 5 | BM25 search, shared chunk manifest, and reversible near-duplicate review | Complete |
+| Day 6 | Dense, sparse, and hybrid retrieval with Reciprocal Rank Fusion | Complete; held-out comparison script added |
+| Day 7 | Reranking and measurable latency | Implemented; 8 focused reranking tests pass |
+| Days 8–9 | Grounded answer generation, citation checks, and safe abstention | Planned |
+| Days 10–11 | Reviewed evaluation set, metrics, and retrieval/chunking experiments | Planned |
+| Days 12–13 | FastAPI service and Streamlit product dashboard | Planned |
+| Day 14+ | SQLite persistence, Docker, demo, documentation, and quality review | Planned |
 
-The MVP target is a reproducible technical-support corpus, inspectable citations, an explicit abstention path, and measured retrieval and answer quality. TechQA is a focused benchmark and seed corpus, not a substitute for a broad set of current company manuals. Its age, scope, and benchmark limitations will be disclosed in evaluation reports.
+The goal is a local-first MVP that can retrieve technical evidence, compare search approaches, show citations, abstain when support is weak, and report measured evaluation results. TechQA is a focused seed corpus and benchmark; it does not represent every company’s current documentation or prove generalization to other organizations.
 
 ## Screenshots
 
-**Product screenshots will be added after the Knowledge Library and Assistant interfaces are implemented.** The current milestones are a Python ingestion and chunking library; there is no graphical interface yet.
+The product UI has not been built yet. Screenshots will be added when the Knowledge Library and Assistant screens are available.
 
-## Data, licensing, and contributions
+<!-- Future: add a product screenshot or demo GIF here. -->
 
-No third-party corpus is bundled in this repository. Before adding datasets or public documentation, record the source, access date, and applicable license in `DATA_SOURCES.md`; review attribution and redistribution terms. Keep large raw datasets and private documents out of Git.
+## Privacy and current limitations
 
-**Project license: not selected yet.** Until a license is added, no permission to reuse or redistribute this project's code should be inferred. Dependencies and any future datasets have their own licenses.
+- The current project is a local prototype for public or non-confidential material. Do not index confidential company documents.
+- Authentication, access controls, tenant isolation, audit logs, retention controls, and prompt-injection defenses are not implemented.
+- Scanned PDFs may not contain extractable text; OCR is not implemented.
+- Held-out retrieval metrics are generated by `scripts/evaluate_retrieval.py`; inspect the local result artifact before making quality comparisons. Answer correctness and citation faithfulness are not yet benchmarked. No accuracy or production-readiness claims are made.
+- Dataset-card licensing does not replace review of source-specific redistribution terms. Large raw datasets, processed corpora, indexes, model caches, and query logs should stay out of Git.
 
-Contributions are welcome as the project takes shape. Please open an issue to discuss larger changes, keep pull requests focused, include tests for new behavior, and report only checks that were actually run. Never commit credentials or confidential documents.
+## Contributing
 
-## Project status and limitations
+DocuMind AI is being developed in small, testable milestones. Please open an issue to discuss substantial changes, keep pull requests focused, add tests for new behavior, and document the checks you ran. Do not commit credentials, confidential documents, raw datasets, or generated index files.
 
-This is an early portfolio/MVP build, not a production-ready company knowledge service. Authentication, authorization, tenant isolation, audit logs, retention controls, and prompt-injection defenses are not implemented. Do not upload confidential company documents. Search and answer quality will be reported only after the corresponding evaluation work exists.
+## License
+
+The project code license has not been selected yet. Until a license is added, permission to reuse or redistribute this repository’s code should not be assumed. Third-party datasets, models, and dependencies have their own licenses.
+
+## Project guide
+
+[PROJECT_GUIDE.md](PROJECT_GUIDE.md) is the living source of truth for the product scope, data handling, architecture, technical decisions, and day-by-day acceptance criteria.

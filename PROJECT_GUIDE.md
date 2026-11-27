@@ -189,7 +189,9 @@ Each day should produce working code, tests, an updated explanation, and a short
 
 **Build:** embedding interface and local Sentence Transformers implementation; persistent Chroma collection; stable chunk IDs and metadata; add/query/delete/rebuild operations.
 
-**Accept when:** embeddings are reproducible for the configured model; vector results map back to canonical chunks and source IDs; persistence survives process restart; delete/rebuild leave the index consistent; CPU-only run is documented.
+**Accept when:** embeddings are reproducible for the configured model; vector results map back to canonical chunks and source IDs; persistence survives process restart; delete/rebuild leave the index consistent; CPU-only run is documented. **Status: met.**
+
+**Implemented:** `documind.embeddings.EmbeddingModel` and the lazy CPU-first `SentenceTransformerEmbedder` use the Apache-2.0 `sentence-transformers/all-MiniLM-L6-v2` model at revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`; normalized embeddings are requested from the model. `documind.vectorstore.ChromaVectorStore` stores vectors and reconstructable chunk provenance in a persistent cosine-distance Chroma collection. Stable chunk IDs are upsert keys; queries return canonical chunks plus distance and similarity; delete reports removed IDs; rebuild first stages a replacement collection and then swaps it into the active name. Collection metadata records the model/revision/dimension and refuses non-empty collections created with a different model revision. Tests use a tiny deterministic embedder; model downloads are not needed for tests. `scripts/smoke_test_vectorstore.py` runs the pinned real model on CPU, performs a semantic query, then launches a fresh process to confirm the index is persisted. **Verified:** 33 tests pass; the CPU smoke test passed with the real model and ChromaDB 1.5.9. The first smoke test run needs internet to fetch the model weights.
 
 ### Day 5 — BM25 and duplicate handling
 
@@ -197,17 +199,25 @@ Each day should produce working code, tests, an updated explanation, and a short
 
 **Accept when:** exact identifiers and error codes are searchable; BM25 and vector indexes derive from the same chunk manifest; add/delete/rebuild updates both; duplicate threshold is configurable and does not destroy source records.
 
+**Implemented:** `ChunkManifestStore` atomically persists canonical chunks to JSONL. `LocalIndexManager` treats this manifest as the source of truth and keeps Chroma and `BM25SearchIndex` synchronized on add, delete, rebuild, and reopen; it repairs a stale Chroma ID set from the manifest rather than silently trusting it. BM25 uses `rank-bm25` `BM25Okapi` with a case-insensitive tokenizer that retains identifiers such as `MAX_POOL_SIZE` and `MQRC_CLUSTER_RESOLUTION_ERROR` as single terms. `DuplicateDetector` searches indexed nearest neighbors in a batch, defaults to cosine similarity 0.95 and 10 candidates per chunk, and saves pair IDs/scores in `DuplicateRegistry`. Reviews can be set to `review`, `duplicate`, or `distinct`; status changes are reversible, and the original chunks remain in both indexes. **Verified:** `python -m pytest -q` passes 38 tests, including exact identifier/error-code search, persistent manifest reload, synchronization on add/delete/rebuild, stale-vector repair, duplicate threshold detection, and reversible review decisions. `python -m compileall -q src\\documind scripts tests` and `git diff --check` completed without errors. **Status: met.**
+
 ### Day 6 — Dense, sparse, and hybrid retrieval
 
 **Build:** dense and sparse retrievers; configurable top-k; Reciprocal Rank Fusion with configurable constant; result schema with ranks and scores.
 
 **Accept when:** each retriever returns source-linked chunks; RRF handles overlap, ties, and missing results deterministically; dense-only and hybrid modes can be compared using the same question set.
 
-### Day 7 — Reranking
+**Implemented:** `ReciprocalRankFusion` combines dense `SearchResult` and sparse `BM25Result` lists using `sum(1 / (constant + one_based_rank))`; the constant defaults to 60 and is configurable through `LocalIndexManager` or `HybridRetriever`. Ties sort by best contributing rank and then stable chunk ID. Repeated IDs in a channel count only at their first rank. `RetrievalResult` includes the canonical chunk, mode, fused score, per-channel ranks, original dense/sparse scores, and RRF score. `LocalIndexManager.search()` exposes `dense`, `sparse`, and `hybrid` modes with configurable `dense_k`, `sparse_k`, and `top_k`, so the same question can be compared across modes. **Verified:** `python -m pytest -q` passes 44 tests; focused coverage includes overlap, missing channels, ties, duplicate IDs, score provenance, configurable RRF, and source-linked results from each mode. Compilation and `git diff --check` passed. **Status: met.**
+
+### Day 7 — Reranking — **implemented; benchmark run in progress**
 
 **Build:** baseline reranker interface; optional local cross-encoder; retrieve up to 10 dense + 10 sparse, fuse, rerank up to 20, retain up to 5; latency and score provenance.
 
-**Accept when:** reranking can be disabled; input/output IDs remain traceable; top-k and latency are measured; optional model is not downloaded unexpectedly during tests.
+**Implemented:** `IdentityReranker` provides a no-model baseline that preserves retrieval order and scores. `CrossEncoderReranker` is lazy, requires a pinned model revision before loading, and can take an injected model for tests. Its default model name is `cross-encoder/ms-marco-MiniLM-L6-v2` (the model card identifies Apache-2.0 licensing and query-passage reranking use); model weights are not fetched by import or tests. `RerankingPipeline` requests 10 dense + 10 sparse candidates, fuses at most 20, returns up to 5 by default, and reports retrieval and reranking latency separately. Each result retains its original `RetrievalResult`, including chunk/document/source IDs, retrieval channel ranks, channel scores, and RRF score, alongside rerank rank and score. The optional model is not enabled by default; pin and record a specific model revision before using it for reproducible comparisons.
+
+**Corpus evaluation preparation:** `scripts/index_techqa.py` applies fixed chunks of 1,000 characters with 150 overlap to the pinned 28,478-document corpus, assigns canonical TechQA document IDs, and records the dataset/document hashes and model revision in an ignored local index config. Chroma upserts embeddings in bounded batches. `scripts/evaluate_retrieval.py` compares dense, BM25 sparse, and RRF hybrid on the same held-out local evaluation cases. It warms the embedding model only with development questions, supplies only question text to retrieval, rotates mode order, and computes document-level Recall@5/10, MRR@10, and mean/median/p95 latency. Per-case and summary JSON are written under ignored `data/eval/results/`; the summary records denominators, configuration, and limitations. This is retrieval-only evaluation; it does not report answer correctness or abstention quality.
+
+**Accept when:** reranking can be disabled; input/output IDs remain traceable; top-k and latency are measured; optional model is not downloaded unexpectedly during tests. **Code acceptance: met; held-out retrieval comparison follows after full-corpus indexing completes.**
 
 ### Day 8 — Grounded answer generation
 
